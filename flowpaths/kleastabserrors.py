@@ -3,6 +3,7 @@ import flowpaths.stdigraph as stdigraph
 import flowpaths.abstractpathmodeldag as pathmodel
 import flowpaths.utils as utils
 import flowpaths.nodeexpandeddigraph as nedg
+import flowpaths.multigraphdecomposer as multidecomp
 import copy
 
 
@@ -26,6 +27,7 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
         optimization_options: dict = None,
         solver_options: dict = {},
         trusted_edges_for_safety: list = None,
+        
     ):
         """
         This class implements the k-LeastAbsoluteErrors problem, namely it looks for a decomposition of a weighted DAG into 
@@ -135,7 +137,16 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
             - If the graph contains edges with negative flow values.
             - ValueError: If `flow_attr_origin` is not "node" or "edge".
         """
-    
+
+        # Handle MultiDiGraph case by creating a decomposer
+        self.multigraph_decomposer = None
+        if isinstance(G, nx.MultiDiGraph):
+            self.multigraph_decomposer = multidecomp.MultiGraphDecomposer(G, additional_starts, additional_ends)
+            G = self.multigraph_decomposer.get_digraph()
+            """
+            note: may need to add elements_to_ignore to the decomposer's along with, trusted_edges_for_safety, and error_scaling, subpath_constraints
+            """
+         
         # Handling node-weighted graphs
         self.flow_attr_origin = flow_attr_origin
         if self.flow_attr_origin == "node":
@@ -165,15 +176,19 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
             additional_ends_internal = additional_ends
             trusted_edges_for_safety_internal = trusted_edges_for_safety or []
             error_scaling_internal = error_scaling
+
+
+            
         else:
             utils.logger.error(f"flow_attr_origin must be either 'node' or 'edge', not {self.flow_attr_origin}")
             raise ValueError(f"flow_attr_origin must be either 'node' or 'edge', not {self.flow_attr_origin}")
-
+       
+            
         self.G = stdigraph.stDiGraph(self.G_internal, additional_starts=additional_starts_internal, additional_ends=additional_ends_internal)
         self.subpath_constraints = subpath_constraints_internal
         self.edges_to_ignore = self.G.source_sink_edges.union(edges_to_ignore_internal)
         self.trusted_edges_for_safety = trusted_edges_for_safety_internal
-        self.edge_error_scaling = error_scaling_internal
+        self.edge_error_scaling = error_scaling_internal 
         # If the error scaling factor is 0, we ignore the edge
         self.edges_to_ignore |= {edge for edge, factor in self.edge_error_scaling.items() if factor == 0}
         
@@ -432,13 +447,25 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
         for (u,v) in self.edge_indexes_basic:
             self.edge_errors_sol[(u,v)] = round(self.edge_errors_sol[(u,v)]) if self.weight_type == int else float(self.edge_errors_sol[(u,v)])
 
-        if self.flow_attr_origin == "edge":
+        if self.multigraph_decomposer is not None:
+            # Convert paths back to original multigraph representation
+            internal_paths = self.get_solution_paths()
+            original_paths = [self.multigraph_decomposer.convert_path_to_original(p) for p in internal_paths]
+            
+            self._solution = {
+                "paths": original_paths,
+                "weights": self.path_weights_sol,
+                "edge_errors": self.edge_errors_sol
+            }
+
+        elif self.multigraph_decomposer is None and self.flow_attr_origin == "edge":
+            print("Returning solution for edge flow attribute")
             self._solution = {
                 "paths": self.get_solution_paths(),
                 "weights": self.path_weights_sol,
                 "edge_errors": self.edge_errors_sol # This is a dictionary with keys (u,v) and values the error on the edge (u,v)
             }
-        elif self.flow_attr_origin == "node":
+        elif self.multigraph_decomposer is None and self.flow_attr_origin == "node":
             self._solution = {
                 "_paths_internal": self.get_solution_paths(),
                 "paths": self.G_internal.get_condensed_paths(self.get_solution_paths()),
