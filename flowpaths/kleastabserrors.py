@@ -143,9 +143,40 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
         if isinstance(G, nx.MultiDiGraph):
             self.multigraph_decomposer = multidecomp.MultiGraphDecomposer(G, additional_starts, additional_ends)
             G = self.multigraph_decomposer.get_digraph()
-            """
-            note: may need to add elements_to_ignore to the decomposer's along with, trusted_edges_for_safety, and error_scaling, subpath_constraints
-            """
+            
+            # Convert elements to ignore to split graph representation
+            split_elements_to_ignore = []
+            for edge in elements_to_ignore:
+                split_edges = self.multigraph_decomposer.convert_original_to_split(edge)
+                split_elements_to_ignore.extend(split_edges)
+            elements_to_ignore = split_elements_to_ignore
+            
+            # Convert trusted edges to split graph representation
+            split_trusted_edges = []
+            if trusted_edges_for_safety:
+                for edge in trusted_edges_for_safety:
+                    split_edges = self.multigraph_decomposer.convert_original_to_split(edge)
+                    split_trusted_edges.extend(split_edges)
+            trusted_edges_for_safety = split_trusted_edges
+            
+            # Convert subpath constraints to split graph representation
+            split_subpath_constraints = []
+            for constraint in subpath_constraints:
+                split_constraint = []
+                for edge in constraint:
+                    split_edges = self.multigraph_decomposer.convert_original_to_split(edge)
+                    split_constraint.extend(split_edges)
+                split_subpath_constraints.append(split_constraint)
+            subpath_constraints = split_subpath_constraints
+            
+            # Convert error scaling to split graph representation
+            split_error_scaling = {}
+            for edge, factor in error_scaling.items():
+                split_edges = self.multigraph_decomposer.convert_original_to_split(edge)
+                for split_edge in split_edges:
+                    split_error_scaling[split_edge] = factor
+            error_scaling = split_error_scaling
+
          
         # Handling node-weighted graphs
         self.flow_attr_origin = flow_attr_origin
@@ -458,14 +489,14 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
                 "edge_errors": self.edge_errors_sol
             }
 
-        elif self.multigraph_decomposer is None and self.flow_attr_origin == "edge":
+        elif self.flow_attr_origin == "edge":
             print("Returning solution for edge flow attribute")
             self._solution = {
                 "paths": self.get_solution_paths(),
                 "weights": self.path_weights_sol,
                 "edge_errors": self.edge_errors_sol # This is a dictionary with keys (u,v) and values the error on the edge (u,v)
             }
-        elif self.multigraph_decomposer is None and self.flow_attr_origin == "node":
+        elif self.flow_attr_origin == "node":
             self._solution = {
                 "_paths_internal": self.get_solution_paths(),
                 "paths": self.G_internal.get_condensed_paths(self.get_solution_paths()),

@@ -115,7 +115,7 @@ class MultiGraphDecomposer:
             simplified_path.append(original_path[i])
             i += 1
 
-        print(f"Converted path: {simplified_path}")
+    
         
         return simplified_path
     
