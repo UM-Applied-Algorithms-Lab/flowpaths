@@ -25,9 +25,8 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
         additional_ends: list = [],
         solution_weights_superset: list = None,
         optimization_options: dict = None,
-        solver_options: dict = {},
         trusted_edges_for_safety: list = None,
-        
+        solver_options: dict[str, any] = {"external_solver": "gurobi"}, 
     ):
         """
         This class implements the k-LeastAbsoluteErrors problem, namely it looks for a decomposition of a weighted DAG into 
