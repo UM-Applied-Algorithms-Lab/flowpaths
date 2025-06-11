@@ -25,6 +25,7 @@ class MultiGraphDecomposer:
         
         # Create the split graph representation
         self._create_split_graph()
+
         
     def _create_split_graph(self) -> None:
         """Create a DiGraph representation by splitting parallel edges."""
@@ -48,7 +49,6 @@ class MultiGraphDecomposer:
                 self.edge_mapping[(u, new_node)] = (u, v, key)
                 self.reverse_edge_mapping[(u, v)][key] = (u, new_node)
 
-    
                 
                 # Add edge from new node to v
                 # make the flow value be 0 for the new edge
@@ -85,20 +85,15 @@ class MultiGraphDecomposer:
             
             # Get the original edge this split edge corresponds to
             original_edge = self.edge_mapping.get((u, v), None)
+
             if original_edge is None:
-         
-                # Check if u is a split node
-                if "_split_" in u:
-                    # This is the second part of a split edge (new_node -> v)
-                    # We should have already added the first part in previous iteration
-                    continue
-                else:
-                    raise ValueError(f"Edge {u}->{v} not found in edge mapping")
+                raise ValueError(f"Edge {u}->{v} not found in edge mapping")
             
-            original_path.append(original_edge)
+            if not "_split_" in u:
+                original_path.append(original_edge)
         
-        # Now we need to handle consecutive edges that were split
-        # (u -> new_node -> v) should be represented as just (u, v, key)
+        # handle consecutive edges that were split
+        # (u -> new_node -> v) represented as just (u, v, key)
         simplified_path = []
         i = 0
         while i < len(original_path):
@@ -115,8 +110,6 @@ class MultiGraphDecomposer:
             simplified_path.append(original_path[i])
             i += 1
 
-    
-        
         return simplified_path
     
     def convert_edge_to_original(self, edge: Tuple) -> Tuple:
@@ -156,4 +149,27 @@ class MultiGraphDecomposer:
                     split_edges.append(split_edge)
         
         return split_edges
+    
+
+    def get_ignore_split_edges(self, edges_to_ignore: Set[Tuple]) -> Set[Tuple]:
+        """
+        Get a set of edges that should be igored when finding kleasterrors..
+        """
+        
+        ignore_set = set(edges_to_ignore)  # Start with original edges
+
+        
+        # Add edges connected to split nodes
+        for edge in self.split_graph.edges(data=True):
+           
+            u = edge[0]
+            
+            # Check if either node is a split node
+            if  "_split_" in u:
+                ignore_set.add(edge[:2])  # Add as (u, v) tuple
+        
+        return ignore_set
+            
+        
+    
 

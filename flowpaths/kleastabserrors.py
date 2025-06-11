@@ -136,50 +136,26 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
             - If the graph contains edges with negative flow values.
             - ValueError: If `flow_attr_origin` is not "node" or "edge".
         """
+        # Handling node-weighted graphs
+        self.flow_attr_origin = flow_attr_origin
 
-        # Handle MultiDiGraph case by creating a decomposer
+        # Handle MultiDiGraph case by creating a decomposer 
+        # Note: this is only for the case of 
         self.multigraph_decomposer = None
         if isinstance(G, nx.MultiDiGraph):
             self.multigraph_decomposer = multidecomp.MultiGraphDecomposer(G, additional_starts, additional_ends)
             G = self.multigraph_decomposer.get_digraph()
+            self.G_internal = G
+            edges_to_ignore_internal = self.multigraph_decomposer.get_ignore_split_edges(elements_to_ignore)
+            edges_to_ignore_internal = list(set(edges_to_ignore_internal))
+            subpath_constraints_internal = subpath_constraints
+            additional_starts_internal = additional_starts
+            additional_ends_internal = additional_ends
+            trusted_edges_for_safety_internal = trusted_edges_for_safety or []
+            error_scaling_internal = error_scaling
             
-            # Convert elements to ignore to split graph representation
-            split_elements_to_ignore = []
-            for edge in elements_to_ignore:
-                split_edges = self.multigraph_decomposer.convert_original_to_split(edge)
-                split_elements_to_ignore.extend(split_edges)
-            elements_to_ignore = split_elements_to_ignore
-            
-            # Convert trusted edges to split graph representation
-            split_trusted_edges = []
-            if trusted_edges_for_safety:
-                for edge in trusted_edges_for_safety:
-                    split_edges = self.multigraph_decomposer.convert_original_to_split(edge)
-                    split_trusted_edges.extend(split_edges)
-            trusted_edges_for_safety = split_trusted_edges
-            
-            # Convert subpath constraints to split graph representation
-            split_subpath_constraints = []
-            for constraint in subpath_constraints:
-                split_constraint = []
-                for edge in constraint:
-                    split_edges = self.multigraph_decomposer.convert_original_to_split(edge)
-                    split_constraint.extend(split_edges)
-                split_subpath_constraints.append(split_constraint)
-            subpath_constraints = split_subpath_constraints
-            
-            # Convert error scaling to split graph representation
-            split_error_scaling = {}
-            for edge, factor in error_scaling.items():
-                split_edges = self.multigraph_decomposer.convert_original_to_split(edge)
-                for split_edge in split_edges:
-                    split_error_scaling[split_edge] = factor
-            error_scaling = split_error_scaling
-
-         
-        # Handling node-weighted graphs
-        self.flow_attr_origin = flow_attr_origin
-        if self.flow_attr_origin == "node":
+        
+        elif self.flow_attr_origin == "node":
             self.G_internal = nedg.NodeExpandedDiGraph(G, node_flow_attr=flow_attr, node_length_attr=length_attr)
             subpath_constraints_internal = self.G_internal.get_expanded_subpath_constraints(subpath_constraints)
             additional_starts_internal = self.G_internal.get_expanded_additional_starts(additional_starts)
@@ -213,15 +189,20 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
             utils.logger.error(f"flow_attr_origin must be either 'node' or 'edge', not {self.flow_attr_origin}")
             raise ValueError(f"flow_attr_origin must be either 'node' or 'edge', not {self.flow_attr_origin}")
        
-            
+
         self.G = stdigraph.stDiGraph(self.G_internal, additional_starts=additional_starts_internal, additional_ends=additional_ends_internal)
         self.subpath_constraints = subpath_constraints_internal
         self.edges_to_ignore = self.G.source_sink_edges.union(edges_to_ignore_internal)
         self.trusted_edges_for_safety = trusted_edges_for_safety_internal
         self.edge_error_scaling = error_scaling_internal 
+
+
         # If the error scaling factor is 0, we ignore the edge
         self.edges_to_ignore |= {edge for edge, factor in self.edge_error_scaling.items() if factor == 0}
+
         
+        
+
         # Checking that every entry in self.error_scaling is between 0 and 1
         for key, value in error_scaling.items():
             if value < 0 or value > 1:
@@ -481,6 +462,7 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
             # Convert paths back to original multigraph representation
             internal_paths = self.get_solution_paths()
             original_paths = [self.multigraph_decomposer.convert_path_to_original(p) for p in internal_paths]
+
             
             self._solution = {
                 "paths": original_paths,
