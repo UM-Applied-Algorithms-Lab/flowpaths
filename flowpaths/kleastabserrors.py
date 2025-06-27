@@ -13,6 +13,7 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
         G: nx.DiGraph,
         flow_attr: str,
         k: int,
+        time_limit: int,
         flow_attr_origin: str = "edge",
         weight_type: type = float,
         subpath_constraints: list = [],
@@ -25,7 +26,7 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
         additional_ends: list = [],
         solution_weights_superset: list = None,
         optimization_options: dict = None,
-        trusted_edges_for_safety: list = None,
+        trusted_edges_for_safety: list = None, 
         solver_options: dict[str, any] = {"external_solver": "gurobi"}, 
     ):
         """
@@ -262,6 +263,11 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
                 or self.subpath_constraints_coverage_length == 1:
                 for constraint in self.subpath_constraints:
                     self.optimization_options["trusted_edges_for_safety"].update(constraint)
+
+        # update the time for solver_options
+        time_limit = {"time_limit": time_limit}
+        solver_options.update(time_limit)
+
 
         # Call the constructor of the parent class AbstractPathModelDAG
         super().__init__(
