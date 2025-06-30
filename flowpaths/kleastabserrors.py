@@ -14,6 +14,7 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
         flow_attr: str,
         k: int,
         time_limit: int,
+        threads: int,
         flow_attr_origin: str = "edge",
         weight_type: type = float,
         subpath_constraints: list = [],
@@ -183,7 +184,7 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
             additional_ends_internal = additional_ends
             trusted_edges_for_safety_internal = trusted_edges_for_safety or []
             error_scaling_internal = error_scaling
-
+ 
 
             
         else:
@@ -266,7 +267,9 @@ class kLeastAbsErrors(pathmodel.AbstractPathModelDAG):
 
         # update the time for solver_options
         time_limit = {"time_limit": time_limit}
+        threads = {'threads': threads}
         solver_options.update(time_limit)
+        solver_options.update(threads)
 
 
         # Call the constructor of the parent class AbstractPathModelDAG
