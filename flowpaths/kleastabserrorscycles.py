@@ -4,6 +4,8 @@ import flowpaths.abstractwalkmodeldigraph as walkmodel
 import flowpaths.utils as utils
 import flowpaths.nodeexpandeddigraph as nedg
 import copy
+import flowpaths.nodeexpandeddigraph as nedg
+import flowpaths.multigraphdecomposer as multidecomp
 import numpy as np
 import time
 
@@ -125,7 +127,22 @@ class kLeastAbsErrorsCycles(walkmodel.AbstractWalkModelDiGraph):
     
         # Handling node-weighted graphs
         self.flow_attr_origin = flow_attr_origin
-        if self.flow_attr_origin == "node":
+        # Handle MultiDiGraph case by creating a decomposer 
+        # Note: this is only for the case of 
+        self.multigraph_decomposer = None
+        if isinstance(G, nx.MultiDiGraph):
+            self.multigraph_decomposer = multidecomp.MultiGraphDecomposer(G, additional_starts, additional_ends)
+            G = self.multigraph_decomposer.get_digraph()
+            self.G_internal = G
+            edges_to_ignore_internal = self.multigraph_decomposer.get_ignore_split_edges(elements_to_ignore)
+            edges_to_ignore_internal = list(set(edges_to_ignore_internal))
+            subset_constraints_internal = subset_constraints
+            additional_starts_internal = additional_starts
+            additional_ends_internal = additional_ends
+            trusted_edges_for_safety_internal = trusted_edges_for_safety or []
+            error_scaling_internal = error_scaling
+
+        elif self.flow_attr_origin == "node":
             if G.number_of_nodes() == 0:
                 utils.logger.error(f"{__name__}: The input graph G has no nodes. Please provide a graph with at least one node.")
                 raise ValueError(f"The input graph G has no nodes. Please provide a graph with at least one node.")
@@ -389,7 +406,19 @@ class kLeastAbsErrorsCycles(walkmodel.AbstractWalkModelDiGraph):
         for (u,v) in self.edge_indexes_basic:
             self.edge_errors_sol[(u,v)] = round(self.edge_errors_sol[(u,v)]) if self.weight_type == int else float(self.edge_errors_sol[(u,v)])
 
-        if self.flow_attr_origin == "edge":
+        if self.multigraph_decomposer is not None:
+            # Convert paths back to original multigraph representation
+            internal_walks = self.get_solution_walks()
+            original_walks = [self.multigraph_decomposer.convert_path_to_original(p) for p in internal_walks]
+
+            self._solution = {
+                "walks": original_walks,
+                "weights": self.path_weights_sol,
+                "edge_errors": self.edge_errors_sol # This is a dictionary with keys (u,v) and values the error on the edge (u,v)
+            }
+
+        elif self.flow_attr_origin == "edge":
+            
             self._solution = {
                 "walks": self.get_solution_walks(),
                 "weights": self.path_weights_sol,

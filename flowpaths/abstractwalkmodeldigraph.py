@@ -199,6 +199,8 @@ class AbstractWalkModelDiGraph(ABC):
 
         # This method initializes the edge and subset variables for the solver and adds constraints
         # to ensure the paths are valid according to the given subset constraints and safe lists.
+     
+
 
         self.edge_indexes = [
             (u, v, i) for i in range(self.k) for (u, v) in self.G.edges()
